@@ -1,4 +1,7 @@
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+from typing import Optional
+from datetime import datetime, timezone
 
 app = FastAPI(
     title="My FastAPI App",
@@ -6,10 +9,30 @@ app = FastAPI(
     version="0.0.1",
 )
 
+task_counter = 4
+
+class TaskCreate(BaseModel):
+    """创建任务时的请求模型"""
+    title: str = Field(...,min_length=1, max_length=100, description="任务标题")
+    description: Optional[str] = Field(None, max_length=500, description="任务描述")
+    priority: int = Field(3, ge=1, le=5, description="优先级")
+
+    model_config = {
+        "json_schema_extra":{
+            "examples":[
+                {
+                    "title": "第一周的任务，完成fastapi基础知识学习",
+                    "description": "包括查询参数、路径参数、pydantic模型",
+                    "priority": 3,
+                }
+            ]
+        }
+    }
+
 tasks_db = {
-    1: {"id": 1, "desc": "获取单个任务，开始行动", "done": False},
-    2: {"id": 2, "desc": "学习使用路径参数和查询参数", "done": False},
-    3: {"id": 3, "desc": "批量获取多个任务", "done": True}
+    1: {"id": 1, "desc": "获取单个任务，开始行动", "done": False,"created_at": datetime.now(timezone.utc)},
+    2: {"id": 2, "desc": "学习使用路径参数和查询参数", "done": False,"created_at": datetime.now(timezone.utc)},
+    3: {"id": 3, "desc": "批量获取多个任务", "done": True,"created_at": datetime.now(timezone.utc)}
 }
 
 @app.get("/")
@@ -50,3 +73,35 @@ def get_user_tasks(user_id: int,  done: bool = None, priority: str = "all"):
         "filters": {"done": done, "priority": priority},
         "tasks": []  # 暂时返回空
     }
+
+class Task(BaseModel):
+    """完整的任务模型"""
+    id: int
+    title: str
+    description: Optional[str] = None
+    priority: int
+    done: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+@app.post("/tasks", response_model=Task, status_code=200)
+def create_task(task: TaskCreate):
+    """
+        创建新任务
+       -请求体需要符合TaskCreate模型
+       -返回完整的Task对象（包含自动生成的ID）
+    :param task:
+    :return:
+    """
+    global task_counter
+
+    new_task = Task(
+        id=task_counter,
+        title=task.title,
+        description=task.description,
+        priority=task.priority,
+        done=False
+    )
+
+    tasks_db[task_counter] = new_task.model_dump()
+    task_counter += 1
+    return new_task
