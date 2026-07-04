@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timezone
@@ -29,10 +29,27 @@ class TaskCreate(BaseModel):
         }
     }
 
+class TaskUpdate(BaseModel):
+    """任务修改模型"""
+    title: str = Field(None, min_length=1, max_length=100, description="任务标题")
+    description: Optional[str] = Field(None, max_length=500, description="任务描述")
+    priority: int = Field(None, ge=1, le=5, description='优先级')
+    done: Optional[bool] = None
+
+
+class Task(BaseModel):
+    """完整的任务模型"""
+    id: int
+    title: str
+    description: Optional[str] = None
+    priority: int
+    done: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 tasks_db = {
-    1: {"id": 1, "desc": "获取单个任务，开始行动", "done": False,"created_at": datetime.now(timezone.utc)},
-    2: {"id": 2, "desc": "学习使用路径参数和查询参数", "done": False,"created_at": datetime.now(timezone.utc)},
-    3: {"id": 3, "desc": "批量获取多个任务", "done": True,"created_at": datetime.now(timezone.utc)}
+    1: {"id": 1, "description": "获取单个任务，开始行动", "done": False,"created_at": datetime.now(timezone.utc)},
+    2: {"id": 2, "description": "学习使用路径参数和查询参数", "done": False,"created_at": datetime.now(timezone.utc)},
+    3: {"id": 3, "description": "批量获取多个任务", "done": True,"created_at": datetime.now(timezone.utc)}
 }
 
 @app.get("/")
@@ -74,15 +91,6 @@ def get_user_tasks(user_id: int,  done: bool = None, priority: str = "all"):
         "tasks": []  # 暂时返回空
     }
 
-class Task(BaseModel):
-    """完整的任务模型"""
-    id: int
-    title: str
-    description: Optional[str] = None
-    priority: int
-    done: bool = False
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 @app.post("/tasks", response_model=Task, status_code=200)
 def create_task(task: TaskCreate):
     """
@@ -105,3 +113,23 @@ def create_task(task: TaskCreate):
     tasks_db[task_counter] = new_task.model_dump()
     task_counter += 1
     return new_task
+
+
+# patch 增量局部更新， put 全量更新 标准语义
+@app.patch("/tasks/{task_id}", response_model=Task, status_code=200)
+def update_task(task_id: int, task_update: TaskUpdate):
+    if task_id not in tasks_db:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task_data = tasks_db[task_id]
+    # 只更新传入的字段（排除None）
+    update_data = task_update.model_dump(exclude_unset=True)
+    task_data.update(update_data)
+
+    return task_data
+
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: int):
+    if task_id not in tasks_db:
+        raise HTTPException(status_code=404, detail="Task not found")
+    # 204响应不返回任何内容
+    del tasks_db[task_id]
