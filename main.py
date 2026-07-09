@@ -1,16 +1,19 @@
-from turtle import done
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, status, Query, Body, Depends
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
 from models import Task, TaskUpdate, TaskCreate, TaskFullUpdate, utc_now
 from sqlite_model import SessionLocal, init_db, Tasks
+import os
 
 app = FastAPI(
     title="任务管理系统API",
     description="基于FastAPI + Pydantic实现的任务CRUD接口，区分PATCH局部更新/PUT全量更新",
     version="0.0.1",
 )
+if os.path.exists("database.db"):
+    os.remove("database.db")
+    print("旧数据库已删除")
 
 # 启动时创建表
 init_db()

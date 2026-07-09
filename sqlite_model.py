@@ -1,7 +1,6 @@
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, MetaData
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, declarative_base
-from sqlalchemy import select
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, MetaData, select, ForeignKey
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, relationship
 
 
 SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
@@ -18,6 +17,23 @@ global_metadata = MetaData()
 class Base(DeclarativeBase):
     metadata = global_metadata
 
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    email = Column(String(100), unique=True, nullable=False)
+    hashed_password = Column(String(200), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    # 建立与Task的关系
+    tasks = relationship("Tasks", back_populates="owner")
+
+    def __repr__(self):
+        return f"<User(id={self.id}, username={self.username}, email={self.email})>"
+
 # 定义tasks模型
 class Tasks(Base):
     __tablename__ = 'tasks'
@@ -29,6 +45,12 @@ class Tasks(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime)
 
+    # 外键，关联users表
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+
+    # 建立与User的关系
+    owner = relationship("User", back_populates="tasks")
+
     def __repr__(self):
         return f"<Task(id={self.id}, name={self.name}, priority={self.priority}, done={self.done})>"
 
@@ -37,13 +59,13 @@ def init_db():
     Base.metadata.create_all(engine)
     print('数据库初始化成功')
 
-if __name__ == '__main__':
-    try:
-        db = SessionLocal()
-        stmt = select(Tasks).where(Tasks.done==False)
-        result = db.execute(stmt).all()
-        result1 = db.execute(stmt).scalars().all()
-        print(f"result1: {result1}")
-        print(f"result2: {result}")
-    finally:
-        db.close()
+# if __name__ == '__main__':
+#     try:
+#         db = SessionLocal()
+#         stmt = select(Tasks).where(Tasks.done==False)
+#         result = db.execute(stmt).all()
+#         result1 = db.execute(stmt).scalars().all()
+#         print(f"result1: {result1}")
+#         print(f"result2: {result}")
+#     finally:
+#         db.close()
