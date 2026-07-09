@@ -1,19 +1,27 @@
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, MetaData
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, declarative_base
+from sqlalchemy import select
+
 
 SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
+
+# 获取引擎，check_same_thread针对SQLite专属参数
 engine = create_engine(SQLALCHEMY_DATABASE_URI, connect_args={"check_same_thread": False})
 
-SessionLocal = sessionmaker(autoflush=False, bind=engine)
+# session工厂
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+global_metadata = MetaData()
 
 # 创建基类
-Base = declarative_base()
+class Base(DeclarativeBase):
+    metadata = global_metadata
 
 # 定义tasks模型
 class Tasks(Base):
     __tablename__ = 'tasks'
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     description = Column(String(500), nullable=True)
     priority = Column(Integer, default=3)
@@ -30,4 +38,12 @@ def init_db():
     print('数据库初始化成功')
 
 if __name__ == '__main__':
-    init_db()
+    try:
+        db = SessionLocal()
+        stmt = select(Tasks).where(Tasks.done==False)
+        result = db.execute(stmt).all()
+        result1 = db.execute(stmt).scalars().all()
+        print(f"result1: {result1}")
+        print(f"result2: {result}")
+    finally:
+        db.close()
