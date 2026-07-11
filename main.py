@@ -1,11 +1,14 @@
+from operator import and_
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, status, Query, Body, Depends
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
-
-from auth import get_password_hash
-from models import Task, TaskUpdate, TaskCreate, TaskFullUpdate, utc_now, UserCreate, UserResponse
+from auth import get_password_hash,verify_password, create_access_token, verify_token
+from demo.sqlite_demo import description, priority
+from models import Task, TaskUpdate, TaskCreate, TaskFullUpdate, UserCreate, UserResponse
 from sqlite_model import SessionLocal, init_db, Tasks, User
+from utils.time_util import utc_now
 import os
 
 app = FastAPI(
@@ -20,6 +23,9 @@ if os.path.exists("database.db"):
 # 启动时创建表
 init_db()
 
+# OAuth2配置
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
 # 获取会话
 def get_db():
     db = SessionLocal()
@@ -28,21 +34,27 @@ def get_db():
     finally:
         db.close()
 
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """
+    从token中解析当前用户
+    :param token:
+    :param db:
+    :return:
+    """
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="无效的认证凭据",
+                            headers={"WWW-Authenticate": "Bearer"})
+    user_id: str = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="无效的token")
 
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="用户不存在")
 
-# task_counter = 4
-
-# tasks_db = {
-#     1: {"id": 1, "name":"第一天学习任务", "description": "获取单个任务，开始行动","priority":3, "done": False,"created_at": utc_now(),"updated_at": None},
-#     2: {"id": 2, "name":"第二天学习任务","description": "学习使用路径参数和查询参数","priority":3, "done": False,"created_at": utc_now(), "updated_at": None},
-#     3: {"id": 3, "name":"第三天学习任务", "description": "批量获取多个任务", "priority":3, "done": True,"created_at": utc_now(), "updated_at": None}
-# }
-
-# def get_next_task_id() -> int:
-#     global task_counter
-#     current_task_id = task_counter
-#     task_counter += 1
-#     return current_task_id
+    return user
 
 @app.get("/")
 def read_root():
@@ -64,16 +76,19 @@ def search_task(name: str, db: Session = Depends(get_db)):
 
 
 @app.get("/tasks/{task_id}", response_model=Task, status_code=status.HTTP_200_OK)
-def get_task(task_id: int, db: Session = Depends(get_db)):
+def get_task(task_id: int,
+             db: Session = Depends(get_db),
+             current_user: User = Depends(get_current_user)):
     """
     根据任务ID查询单条任务详情
     :param task_id: 任务id
     :param db: 会话
+    :param current_user: 当前用户
     :return: 任务
     """
     #stmt = select(Tasks).where(Tasks.id == task_id)
     #result = db.execute(stmt).scalar_one_or_none()
-    task = db.get(Tasks, task_id)
+    task = select(Tasks).where(and_(Tasks.id == task_id, Tasks.owner_id == current_user.id))
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return task
@@ -84,7 +99,8 @@ def get_tasks(
         limit: int = Query(2, ge=1, le=20, description="每页最大20条"),
         done: Optional[bool] = Query(None, description="根据状态进行筛选"),
         priority: Optional[int] = Query(None, description="优先级筛选"),
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     """
     分页查询任务列表，支持状态、优先级过滤
@@ -93,9 +109,10 @@ def get_tasks(
     :param done: 状态
     :param priority: 优先级
     :param db: 会话
+    :param current_user: 当前用户
     :return: 任务列表
     """
-    stmt = select(Tasks)
+    stmt = select(Tasks).where(Tasks.owner_id == current_user.id)
     if done is not None:
         stmt = stmt.where(Tasks.done == done)
     if priority is not None:
@@ -107,32 +124,30 @@ def get_tasks(
     # 返回指定区间内的任务
     return result
 
-@app.get("/users/{user_id}/tasks", status_code=status.HTTP_200_OK)
-def get_user_tasks(user_id: int,  done: bool = None, priority: str = "all"):
-    """
-        获取某用户的任务 - 路径参数+查询参数混合
-        这是实际开发中最常见的写法
-    """
-    return {
-        "user_id": user_id,
-        "filters": {"done": done, "priority": priority},
-        "tasks": []  # 暂时返回空
-    }
-
 # -------------------------- 创建接口 --------------------------
 @app.post("/tasks", response_model=Task, status_code=status.HTTP_201_CREATED)
-def create_task(task: TaskCreate, db: Session = Depends(get_db)):
+def create_task(task: TaskCreate,
+                db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     """
     创建任务
     :param task: 任务创建模型
     :param db: 会话
+    :param current_user: 会话
     :return: orm实例
     """
 
     # new_id = get_next_task_id()
 
-    new_task = Tasks(**task.model_dump(),done=False)
+    # new_task = Tasks(**task.model_dump(),done=False)
     # tasks_db[new_id] = new_task.model_dump()
+    new_task = Tasks(
+        name = task.name,
+        description = task.description,
+        priority = task.priority,
+        done = False,
+        owner_id = current_user.id  # 绑定到当前用户
+    )
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
@@ -161,13 +176,6 @@ def batch_create_task(
     """
     try:
         # 通过db.execute()方法
-        # insert_data_list = []
-        # new_tasks = []
-        # for task in tasks:
-        #     data  = task.model_dump()
-        #     data["done"] = False  # 补充默认状态
-        #     insert_data_list.append(data)
-        #
         # stmt = insert(Tasks).values(insert_data_list)
         # results = db.execute(stmt)
         # db.commit()
@@ -201,13 +209,6 @@ def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get
     :return: 任务对象
     """
 
-    # if task_id not in tasks_db:
-    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    # task_data = tasks_db[task_id]
-    # # 只更新传入的字段（排除None）
-    # update_data = task_update.model_dump(exclude_unset=True)
-    # task_data.update(update_data)
-    # task_data['updated_at'] = utc_now()
     try:
         target_task = db.get(Tasks, task_id)
         if not target_task:
@@ -270,16 +271,6 @@ def update_full_task(task_id: int, full_task: TaskFullUpdate, db: Session = Depe
     except Exception as e:
         db.rollback()
         raise e
-    # if task_id not in tasks_db:
-    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    #
-    # full_dict = full_task.model_dump()
-    # full_dict['id'] = task_id
-    # full_dict['updated_at'] = utc_now()
-    # full_dict['created_at'] = tasks_db[task_id]['created_at']
-    #
-    # tasks_db[task_id] = full_dict
-    # return tasks_db[task_id]
 
 # -------------------------- 删除接口 --------------------------
 @app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -298,12 +289,6 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
         db.rollback()
         raise e
 
-
-    # task = db.get(Tasks, task_id)
-    # if not task:
-    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    # db.delete(task)
-    # db.commit()
 
 @app.post("/users/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -349,3 +334,28 @@ def get_user(user_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     return user
+
+# =========认证依赖==========
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """
+    用户登录
+    -使用OAuth2表单格式（username和password字段）
+    :param form_data:
+    :param db:
+    :return:
+    """
+    # 查找用户
+    user = db.query(User).filter(User.username==form_data.username).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="用户名或密码错误")
+
+    access_token = create_access_token(data={"sub": str(user.id)})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/user/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    return current_user

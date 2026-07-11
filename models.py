@@ -1,12 +1,7 @@
 from typing import Optional, Literal
-from datetime import datetime, timezone
+from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
-from auth import verify_password, get_password_hash
-
-# 公共类，统一获取UTC时间
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
-
+from utils.time_util import utc_now
 
 
 # 创建公共基础字段
@@ -21,6 +16,7 @@ class Task(TaskBase):
     created_at: datetime = Field(default_factory=utc_now, description="创建时间")
     updated_at: Optional[datetime] = Field(None, description="更新时间")
     done: bool = Field(False, description="任务是否完成")
+    owner_id: int = Field(None, description="所属用户")
 
     model_config = ConfigDict(
         from_attributes=True,
