@@ -1,10 +1,13 @@
 from typing import Optional, Literal
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, ConfigDict
+from auth import verify_password, get_password_hash
 
 # 公共类，统一获取UTC时间
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
 
 # 创建公共基础字段
 class TaskBase(BaseModel):
@@ -61,3 +64,18 @@ class TaskFullUpdate(TaskBase):
     description: Optional[str] = Field(..., max_length=500, description="任务描述")
     priority: Literal[1,2,3,4,5] = Field(..., ge=1, le=5, description="任务优先级")
     done: bool = Field(..., description="任务完成状态")
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=10, description="用户名")
+    email: str = Field(..., pattern=r"^[\w\.-]+@[\w\.-]+\.\w+$")
+    password: str = Field(..., min_length=8)
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes  = True

@@ -2,8 +2,10 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException, status, Query, Body, Depends
 from sqlalchemy import select, update, delete
 from sqlalchemy.orm import Session
-from models import Task, TaskUpdate, TaskCreate, TaskFullUpdate, utc_now
-from sqlite_model import SessionLocal, init_db, Tasks
+
+from auth import get_password_hash
+from models import Task, TaskUpdate, TaskCreate, TaskFullUpdate, utc_now, UserCreate, UserResponse
+from sqlite_model import SessionLocal, init_db, Tasks, User
 import os
 
 app = FastAPI(
@@ -303,3 +305,47 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     # db.delete(task)
     # db.commit()
 
+@app.post("/users/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register(user_data: UserCreate, db: Session = Depends(get_db)):
+    """
+    用户注册
+    :param user_data:
+    :param db:
+    :return:
+    """
+    # 检查用户名是否存在
+    stmt = select(User).where(User.username==user_data.username)
+    existing_user = db.execute(stmt).first()
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
+
+    existing_email = db.query(User).filter(User.email==user_data.email).first()
+    if existing_email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
+
+    # 创建用户
+    new_user = User(
+        username = user_data.username,
+        email = user_data.email,
+        hashed_password = get_password_hash(user_data.password)
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user
+
+@app.get("/users/{user_id}", response_model=UserResponse, status_code=status.HTTP_200_OK)
+def get_user(user_id: str, db: Session = Depends(get_db)):
+    """
+    获取单个用户
+    :param user_id:
+    :param db:
+    :return:
+    """
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return user
