@@ -7,7 +7,7 @@ from app.models import User, Category
 from app.auth import get_current_user
 
 
-router = APIRouter(prefix="/categories", tags=["categories"])
+router = APIRouter(prefix="/categories", tags=["分类管理"])
 
 @router.get("/", response_model=List[CategoryResponse])
 def get_categories(

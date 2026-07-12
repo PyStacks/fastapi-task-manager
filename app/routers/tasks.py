@@ -51,6 +51,7 @@ def get_tasks(
         limit: int = Query(2, ge=1, le=20, description="每页最大20条"),
         done: Optional[bool] = Query(None, description="根据状态进行筛选"),
         priority: Optional[int] = Query(None, description="优先级筛选"),
+        category_id: Optional[int] = Query(None, description="分类筛选"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -60,6 +61,7 @@ def get_tasks(
     :param limit: 每页最大20条
     :param done: 状态
     :param priority: 优先级
+    :param category_id: 分类
     :param db: 会话
     :param current_user: 当前用户
     :return: 任务列表
@@ -69,6 +71,8 @@ def get_tasks(
         stmt = stmt.where(Tasks.done == done)
     if priority is not None:
         stmt = stmt.where(Tasks.priority == priority)
+    if category_id is not None:
+        stmt = stmt.where(Tasks.category_id == category_id)
 
     stmt = stmt.offset(skip).limit(limit)
     result = db.execute(stmt).scalars().all()
@@ -98,7 +102,8 @@ def create_task(task: TaskCreate,
         description = task.description,
         priority = task.priority,
         done = False,
-        owner_id = current_user.id  # 绑定到当前用户
+        owner_id = current_user.id,  # 绑定到当前用户
+        category_id = task.category_id # 分类
     )
     db.add(new_task)
     db.commit()

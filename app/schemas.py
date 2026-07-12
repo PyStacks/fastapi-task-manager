@@ -18,6 +18,7 @@ class Task(TaskBase):
     updated_at: Optional[datetime] = Field(None, description="更新时间")
     done: bool = Field(False, description="任务是否完成")
     owner_id: int = Field(None, description="所属用户")
+    category_id: Optional[int] = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -38,6 +39,7 @@ class Task(TaskBase):
 class TaskCreate(TaskBase):
     name: str = Field(..., min_length=1, max_length=100, description="任务名称（必填）")
     priority: Literal[1,2,3,4,5] = Field(..., ge=1, le=5, description="任务优先级（必填）")
+    category_id: Optional[int] = None
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -46,10 +48,10 @@ class TaskCreate(TaskBase):
                 "name": "学习建立任务创建模型",
                 "description": "学习前端入参有些字段不需要带入，后端自动生成",
                 "priority": 4,
+                "category_id": 1
             }
         }
     )
-
 
 #  PATCH局部更新模型：所有字段可选，只传要修改的字段
 class TaskUpdate(TaskBase):
