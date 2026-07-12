@@ -11,7 +11,7 @@ class Settings:
     # JWT配置
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",
-        "your-secret-key-change-this-in-production"
+        "123456789"
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24小时

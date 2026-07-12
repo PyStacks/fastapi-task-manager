@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.security import  OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+
 from app.auth import verify_password, create_access_token
-from app.models import User
 from app.database import get_db, init_db
+from app.models import User
 from app.routers import users, tasks, categories
 
 app = FastAPI(

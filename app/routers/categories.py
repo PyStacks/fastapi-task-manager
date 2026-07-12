@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+# 1. 标准库
 from typing import List
-from app.schemas import CategoryResponse, CategoryCreate, CategoryUpdate
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models import User, Category
-from app.auth import get_current_user
 
+# 2. 第三方库（fastapi 在前，sqlalchemy在后，字母排序）
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import exists
+from sqlalchemy.orm import Session
+
+# 3. 本地项目导入（按app下路径字母排序）
+from app.auth import get_current_user
+from app.database import get_db
+from app.models import Category, Tasks, User
+from app.schemas import CategoryCreate, CategoryResponse, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["分类管理"])
 
@@ -16,9 +21,9 @@ def get_categories(
 ):
     """
     获取当前用户的所有分类
-    :param db:
-    :param current_user:
-    :return:
+    :param db: 会话
+    :param current_user: 当前用户
+    :return: 分类列表
     """
     categories = db.query(Category).filter(Category.user_id == current_user.id).all()
     return categories
@@ -31,10 +36,10 @@ def create_category(
 ):
     """
     创建分类
-    :param category_data: 
-    :param db: 
-    :param current_user: 
-    :return: 
+    :param category_data: 传入的分类数据
+    :param db: 会话
+    :param current_user: 当前用户
+    :return: 创建成功的分类数据
     """
     # 检查分类是否存在
     exist_category = db.query(Category).filter(
@@ -64,11 +69,11 @@ def update_category(
 ):
     """
     更新分类
-    :param category_id: 
-    :param category_data: 
-    :param db: 
-    :param current_user: 
-    :return: 
+    :param category_id: 分类id
+    :param category_data: 分类数据
+    :param db: 会话
+    :param current_user: 会话
+    :return: 修改后的分类数据
     """
     category = db.query(Category).filter(
         Category.id == category_id,
@@ -92,6 +97,13 @@ def delete_category(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
+    """
+    删除分类，应该校验是否已经使用，只能删除未使用的分类
+    :param category_id: 分类id
+    :param db: 会话
+    :param current_user: 当前用户
+    :return: 无返回值 204
+    """
     category = db.query(Category).filter(
         Category.id == category_id,
         Category.user_id == current_user.id
@@ -100,5 +112,16 @@ def delete_category(
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
+    has_used = db.query(
+        exists().where(
+            Tasks.category_id == category_id,
+            Tasks.owner_id == current_user.id
+        )
+    ).scalar()
+
+    if has_used:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分类已被使用，无法删除")
+
     db.delete(category)
     db.commit()
+    return

@@ -1,9 +1,11 @@
 from datetime import datetime
+
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+
 from app.database import Base
 
-
+# User模型
 class User(Base):
     __tablename__ = "users"
 

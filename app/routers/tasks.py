@@ -1,15 +1,16 @@
-from fastapi import APIRouter, status, Depends, HTTPException, Query, Body
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from app.schemas import TaskCreate, TaskUpdate, Task, TaskFullUpdate
-from app.database import get_db
+
+from fastapi import APIRouter, status, Depends, HTTPException, Query, Body
 from sqlalchemy import select,and_,update, delete
-from app.models import Tasks, User
+from sqlalchemy.orm import Session
+
 from app.auth import get_current_user
+from app.database import get_db
+from app.models import Tasks, User
+from app.schemas import TaskCreate, TaskUpdate, Task, TaskFullUpdate
 from utils.time_util import utc_now
 
 router = APIRouter(prefix="/tasks", tags=["任务管理"])
-
 
 # -------------------------- 查询接口 --------------------------
 @router.get("/search", response_model=List[Task], status_code=status.HTTP_200_OK)
@@ -97,18 +98,6 @@ def create_task(task: TaskCreate,
 
     # new_task = Tasks(**task.model_dump(),done=False)
     # tasks_db[new_id] = new_task.model_dump()
-    new_task = Tasks(
-        name = task.name,
-        description = task.description,
-        priority = task.priority,
-        done = False,
-        owner_id = current_user.id,  # 绑定到当前用户
-        category_id = task.category_id # 分类
-    )
-    db.add(new_task)
-    db.commit()
-    db.refresh(new_task)
-
     # db.execute()
     # insert_data = task.model_dump()
     # insert_data['done'] = False
@@ -118,7 +107,24 @@ def create_task(task: TaskCreate,
     # task_id = result.inserted_primary_key[0]
     # new_task = db.get(Tasks, task_id)
 
-    return new_task
+    try:
+        new_task = Tasks(
+            name = task.name,
+            description = task.description,
+            priority = task.priority,
+            done = False,
+            owner_id = current_user.id,  # 绑定到当前用户
+            category_id = task.category_id # 分类
+        )
+        db.add(new_task)
+        db.commit()
+        db.refresh(new_task)
+
+        return new_task
+
+    except Exception as e:
+        db.rollback()
+        raise e
 
 @router.post("/batch", response_model=List[Task], status_code=status.HTTP_201_CREATED)
 def batch_create_task(

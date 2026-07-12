@@ -17,7 +17,6 @@ class Base(DeclarativeBase):
     metadata = global_metadata
 
 
-
 # 获取会话
 def get_db():
     db = SessionLocal()

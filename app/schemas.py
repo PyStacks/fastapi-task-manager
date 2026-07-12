@@ -1,6 +1,8 @@
 from typing import Optional, Literal
 from datetime import datetime
+
 from pydantic import BaseModel, Field, ConfigDict
+
 from utils.time_util import utc_now
 
 

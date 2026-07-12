@@ -1,76 +1,70 @@
-from passlib.context import CryptContext
-from datetime import  timedelta
-from jose import JWTError, jwt
+# 1. 标准库
+import hashlib
+from datetime import timedelta
 from typing import Optional
-from utils.time_util import utc_now
+
+# 2. 第三方依赖
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+
+# 3. app 业务模块
+from app.config import settings
 from app.database import get_db
 from app.models import User
-import hashlib
 
-# JWT配置
-SECRET_KEY = '123456789'
-ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+# 4. utils 工具模块
+from utils.time_util import utc_now
 
 # 密码加密上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # OAuth2配置
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-def _pre_hash(raw_pwd: str) -> str:
-    # 任意长度密码统一压缩为固定256bit摘要，字节永远小于72
-    return hashlib.sha256(raw_pwd.encode("utf-8")).hexdigest()
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     验证密码
-    :param plain_password:
-    :param hashed_password:
-    :return:
+    :param plain_password: 原密码
+    :param hashed_password: 哈希密码
+    :return: 密码验证是否成功
     """
-    fixed_len_pwd = _pre_hash(plain_password)
-    return pwd_context.verify(fixed_len_pwd, hashed_password)
+    return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
     """
     生成哈希密码
-    :param password:
-    :return:
+    :param password: 原密码
+    :return: 哈希密码
     """
-    print("待加密明文：", password, "字节长度：", len(password.encode("utf8")))
-    fixed_len_pwd = _pre_hash(password)
-    print(fixed_len_pwd)
-    print(len(fixed_len_pwd.encode("utf8")))
-    return pwd_context.hash(fixed_len_pwd)
+    return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """
     生成JWT令牌
-    :param data:
-    :param expires_delta:
-    :return:
+    :param data:元数据
+    :param expires_delta:过期时间
+    :return: JWT令牌
     """
     to_encode = data.copy()
     if expires_delta:
         expire = utc_now() + expires_delta
     else:
-        expire = utc_now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = utc_now() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 def verify_token(token: str) -> Optional[dict]:
     """
     验证JWT令牌
-    :param token:
-    :return:
+    :param token:token信息
+    :return:验证是否成功
     """
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
     except JWTError:
         return None
@@ -78,9 +72,9 @@ def verify_token(token: str) -> Optional[dict]:
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
     从token中解析当前用户
-    :param token:
-    :param db:
-    :return:
+    :param token: token信息
+    :param db:会话
+    :return:token中携带的当前用户
     """
     payload = verify_token(token)
     if not payload:
