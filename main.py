@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth import verify_password, create_access_token
 from app.models import User
 from app.database import get_db, init_db
-from app.routers import users, tasks
+from app.routers import users, tasks, categories
 
 app = FastAPI(
     title="任务管理系统API",
@@ -14,6 +14,7 @@ app = FastAPI(
 
 app.include_router(users.router)
 app.include_router(tasks.router)
+app.include_router(categories.router)
 
 # 启动时创建表
 init_db()
