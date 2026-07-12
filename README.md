@@ -1,17 +1,36 @@
-# 任务管理系统 API
+# 📝 任务管理系统 API
 
-## 项目简介
-这是我学习FastAPI的第一个项目，实现了任务的增删改查功能。
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688?logo=fastapi)
+![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0+-red)
+![JWT](https://img.shields.io/badge/Auth-JWT-orange)
 
-## 技术栈
-- FastAPI 0.100+
-- Python 3.10+
-- Pydantic 2.0+
-- Uvicorn
+## 📖 项目简介
 
-## 快速开始
+基于FastAPI开发的任务管理系统后端API，支持用户认证、任务管理和分类管理。
+
+### ✨ 核心功能
+- ✅ 用户注册/登录（JWT认证）
+- ✅ 任务的增删改查
+- ✅ 按状态/优先级/分类筛选
+- ✅ 自定义分类和颜色
+- ✅ 用户数据隔离（只能操作自己的数据）
+
+## 🛠 技术栈
+
+| 技术 | 用途 |
+|------|------|
+| FastAPI | Web框架 |
+| SQLAlchemy | ORM数据库操作 |
+| SQLite | 数据库（可轻松切换PostgreSQL） |
+| Pydantic | 数据验证 |
+| JWT (python-jose) | 用户认证 |
+| Passlib (bcrypt) | 密码加密 |
+
+## 🚀 快速开始
 
 ### 1. 克隆项目
+
 ```bash
 git clone https://github.com/你的用户名/fastapi-task-manager.git
 cd fastapi-task-manager

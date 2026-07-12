@@ -1,21 +1,7 @@
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, MetaData, select, ForeignKey
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, relationship
-
-
-SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
-
-# 获取引擎，check_same_thread针对SQLite专属参数
-engine = create_engine(SQLALCHEMY_DATABASE_URI, connect_args={"check_same_thread": False})
-
-# session工厂
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-global_metadata = MetaData()
-
-# 创建基类
-class Base(DeclarativeBase):
-    metadata = global_metadata
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from app.database import Base
 
 
 class User(Base):
@@ -44,28 +30,27 @@ class Tasks(Base):
     done = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime)
+    category_id = Column(Integer, ForeignKey('categories.id'), nullable=True)
 
     # 外键，关联users表
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=True)
 
     # 建立与User的关系
     owner = relationship("User", back_populates="tasks")
+    category = relationship("Category", back_populates="tasks")
 
     def __repr__(self):
         return f"<Task(id={self.id}, name={self.name}, priority={self.priority}, done={self.done})>"
 
-# 初始化
-def init_db():
-    Base.metadata.create_all(engine)
-    print('数据库初始化成功')
+# 定义分类模型
+class Category(Base):
 
-# if __name__ == '__main__':
-#     try:
-#         db = SessionLocal()
-#         stmt = select(Tasks).where(Tasks.done==False)
-#         result = db.execute(stmt).all()
-#         result1 = db.execute(stmt).scalars().all()
-#         print(f"result1: {result1}")
-#         print(f"result2: {result}")
-#     finally:
-#         db.close()
+    __tablename__ = 'categories'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    color = Column(String(7), default="#808080")
+    user_id = Column(Integer, ForeignKey('users.id'))
+
+    user = relationship("User")
+    tasks = relationship("Tasks", back_populates="category")
