@@ -10,6 +10,7 @@ class TaskBase(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="任务描述")
     priority: Literal[1,2,3,4,5] = Field(None, ge=1, le=5, description="任务优先级1-5")
 
+# ==========任务相关模型===============
 # 任务模型
 class Task(TaskBase):
     id: int
@@ -61,6 +62,8 @@ class TaskFullUpdate(TaskBase):
     priority: Literal[1,2,3,4,5] = Field(..., ge=1, le=5, description="任务优先级")
     done: bool = Field(..., description="任务完成状态")
 
+
+# ===========用户相关模型==============
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=10, description="用户名")
     email: str = Field(..., pattern=r"^[\w\.-]+@[\w\.-]+\.\w+$")
